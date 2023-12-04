@@ -1,0 +1,74 @@
+using System.IO.Compression;
+
+namespace ZipSumeFile
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+
+            if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+            {
+                string selectedFolder = folderBrowserDialog.SelectedPath;
+
+                // Получаем список файлов и подпапок в выбранной директории
+                string[] files = Directory.GetFiles(selectedFolder);
+                string[] directories = Directory.GetDirectories(selectedFolder);
+
+                // Группировка файлов и папок по именам (без расшиения) 
+                var fileAndDirectoryNames = files.Select(f => Path.GetFileNameWithoutExtension(f))
+                    .Concat(directories.Select(d => Path.GetFileName(d))).ToArray();
+
+                var groups = fileAndDirectoryNames.GroupBy(x => x);
+
+                // Архивация и удаление файлов и папок
+                foreach (var group in groups)
+                {
+                    if (group.Count() > 1)
+                    {
+                        var itemsToArchive = files.Where(f => Path.GetFileNameWithoutExtension(f) == group.Key)
+                            .Concat(directories.Where(d => Path.GetFileName(d) == group.Key));
+
+                        string zipPath = Path.Combine(selectedFolder, group.Key + ".zip");
+                        using (ZipArchive archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+                        {
+                            foreach (var item in itemsToArchive)
+                            {
+                                if (File.Exists(item)) // Если это файл, добавляем его в архив и удаляем
+                                {
+                                    archive.CreateEntryFromFile(item, Path.GetFileName(item));
+                                    File.Delete(item);
+                                }
+                                else // Если это папка, архивируем ее целиком и удаляем
+                                {
+                                    ZipDirectory(item, archive, selectedFolder);
+                                    Directory.Delete(item, true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Метод для архивации папки целиком
+        private void ZipDirectory(string directory, ZipArchive archive, string rootDirectory)
+        {
+            foreach (string file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                string entryName = Path.GetRelativePath(rootDirectory, file);
+                archive.CreateEntryFromFile(file, entryName);
+                File.Delete(file);
+            }
+        }
+
+
+
+    }
+}
